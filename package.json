@@ -48,9 +48,9 @@
     "check": "npm run lint && npm run typecheck && npm run build && npm test && npm run test:perf && npm run test:gc"
   },
   "dependencies": {
-    "@typescript-eslint/scope-manager": "8.71.1",
-    "@typescript-eslint/visitor-keys": "8.71.1",
-    "oxc-parser": "0.153.0"
+    "@typescript-eslint/scope-manager": "8.71.2",
+    "@typescript-eslint/visitor-keys": "8.71.2",
+    "oxc-parser": "0.154.0"
   },
   "devDependencies": {
     "@biomejs/biome": "2.5.15",
