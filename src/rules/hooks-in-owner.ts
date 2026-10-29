@@ -67,7 +67,10 @@ interface Options {
  * - an owner-bound hook or any `use*` call inside a callback that runs later: an `on*` JSX handler,
  *   a `setTimeout` / `setInterval` / `queueMicrotask` / `requestAnimationFrame` /
  *   `requestIdleCallback` callback, a `.then` / `.catch` / `.finally` / `.addEventListener`
- *   callback, or a function named `handleX` / `onX`.
+ *   callback, or a function named `handleX` / `onX`;
+ * - an owner-bound hook or any `use*` call that comes after an `await` (or a `for await` loop) in
+ *   the same async function, such as `onMount(async () => { await load(); onCleanup(stop); })`: the
+ *   owner is gone once the function has yielded.
  *
  * `useSignal`, `useStore` and `useMemo` work without an owner, so only loops and early returns are
  * reported for them. A component is a PascalCase function that contains JSX; a custom hook is a
@@ -325,6 +328,28 @@ export const hooksInOwner: ShadowRule = defineRule({
               data: { name, where: "at module scope" },
             });
           }
+          return;
+        }
+        // The owner is current only until the function first yields: after an `await` the continuation runs from the
+        // microtask queue, where no owner is set, in a component, a hook or an `onMount` callback alike.
+        if (
+          Reflect.get(fn, "async") === true &&
+          (OWNER_REQUIRED.has(name) || extra.has(name) || isHookName(name)) &&
+          someInFunction(
+            fn,
+            keys,
+            (candidate) =>
+              (candidate.type === "AwaitExpression" ||
+                (candidate.type === "ForOfStatement" &&
+                  Reflect.get(candidate, "await") === true)) &&
+              candidate.range[1] <= node.range[0],
+          )
+        ) {
+          context.report({
+            node,
+            messageId: "outsideOwner",
+            data: { name, where: "after an `await` in an async function" },
+          });
           return;
         }
         const fnName = functionName(fn);

@@ -78,7 +78,7 @@ Defaults: `[{"frameworks":["react"]}]`
 
 ## Autofix and suggestions
 
-Solid `onChange` on a text input is renamed to `onchange` (the native change event, Solid's meaning), unless the element has a second `onChange` or already has `onchange`. Other fixes rename hooks to their ShadowJS names (`useState` to `useSignal` with every read of the value turned into a call, `useLayoutEffect` to `useRenderEffect`, Solid `createX` hooks to their `use*` equivalents), drop dependency arrays (`useEffect(fn, [])` becomes `onMount(fn)`), unwrap `useCallback(fn)` and `memo(fn)`, turn `useMemo` reads into calls, rename `className`/`htmlFor` on DOM elements, move same-name imports to `@shadow-js/*` and remove imports that are no longer used. A fix is withheld when the needed name is already bound to something else, when a `useState`/`useMemo` value is reassigned or not stored in a plain variable, and for `createEffect(on(...))`. The `key` suggestion removes the attribute from a DOM element. APIs without an equivalent are reported with the recipe and not fixed.
+Solid `onChange` on a text input is renamed to `onchange` (the native change event, Solid's meaning), unless the element has a second `onChange` or already has `onchange`. Other fixes rename hooks to their ShadowJS names (`useState` to `useSignal` with every read of the value turned into a call, `useLayoutEffect` to `useRenderEffect`, Solid `createX` hooks to their `use*` equivalents), drop dependency arrays (`useEffect(fn, [])` becomes `onMount(fn)`), unwrap `useCallback(fn)` and `memo(fn)`, turn `useMemo` reads into calls, rename `className`/`htmlFor` on DOM elements, move same-name imports to `@shadow-js/*` and remove imports that are no longer used. A lazy `useState(() => expression)` initializer is unwrapped to `useSignal(expression)`. A fix is withheld when the needed name is already bound to something else, when a `useState`/`useMemo` value is reassigned or not stored in a plain variable, when a function initializer is not a plain `() => expression`, and for `createEffect(on(...))`. A dependency array of an effect that reads and writes the same signal is removed by a suggestion only, since the effect would then loop. The `key` suggestion removes the attribute from a DOM element. APIs without an equivalent are reported with the recipe and not fixed.
 
 ## Disabling
 
@@ -86,6 +86,8 @@ Disable one line with `// eslint-disable-next-line shadow/no-react-patterns`, a 
 
 ## Notes
 
+- `useState(() => expression)` becomes `useSignal(expression)`: ShadowJS has no lazy initializer and `useSignal` would store the function. A function initializer that is not a plain arrow with an expression body is reported without a fix.
+- A dependency array is removed by the autofix only when the effect body does not write a signal it reads; otherwise the removal is a suggestion with the reason, because the effect would track the signal and re-run after each of its own writes.
 - Autofixes: `useState` to `useSignal` (reads become calls), dependency arrays removed (`[]` becomes `onMount`), `useLayoutEffect` to `useRenderEffect`, `useCallback`/`memo` unwrapped, `className`/`htmlFor` renamed, imports moved to `@shadow-js/*` and the old import removed once unused. Fixes apply over several ESLint passes.
 - `key` on an element is a suggestion: removing it changes nothing at run time, but the list may need `<For key>`.
 - `onChange` on a text input or a textarea is per edit in ShadowJS, as in React. Solid's `onChange` is committed on change: with `frameworks: ['solid']`, or a file that imports `solid-js` and no React module when both are listed, it is reported once and the fix renames it to `onchange`. Use `onInput` to keep per-edit updates.
@@ -101,6 +103,8 @@ Disable one line with `// eslint-disable-next-line shadow/no-react-patterns`, a 
 - `renamed`: `{{from}}` is `{{to}}` in ShadowJS.
 - `memoAccessor`: `useMemo` returns an accessor in ShadowJS: read the value as `value()`. The dependency array is not needed.
 - `dependencyArray`: ShadowJS tracks dependencies automatically. Remove the dependency array of `{{name}}`.
+- `dependencyArrayLoops`: ShadowJS tracks dependencies automatically, so the dependency array of `{{name}}` can go. But this effect writes `{{written}}` and also reads it: tracked on its own it would run again after every write and never settle. Read it with `untrack(...)`, or give the effect an explicit source with `useEffect(source, fn)`, before removing the array.
+- `removeDependencyArray`: Remove the dependency array anyway (check the effect for a read-and-write loop first).
 - `emptyDeps`: `{{name}}(fn, [])` runs once: that is `onMount(fn)` in ShadowJS.
 - `useCallback`: Components run once, so functions are already stable: `useCallback` is not needed.
 - `memo`: Components run once, so `memo` is not needed.

@@ -27,6 +27,22 @@ const EQUALITY_OPERATORS = new Set(["==", "!=", "===", "!=="]);
 const VALUE_UNARY = new Set(["-", "+", "!", "~"]);
 const FUNCTION_MEMBERS = new Set(["call", "apply", "bind"]);
 /** Global functions that coerce or compute from their arguments. */
+/** Compound assignments whose right side is combined arithmetically or by concatenation (`t += count`). Logical ones store it. */
+const COMPOUND_VALUE_OPERATORS = new Set([
+  "+=",
+  "-=",
+  "*=",
+  "/=",
+  "%=",
+  "**=",
+  "<<=",
+  ">>=",
+  ">>>=",
+  "&=",
+  "|=",
+  "^=",
+]);
+
 const COERCING_CALLEES = new Set([
   "Number",
   "String",
@@ -114,6 +130,12 @@ function situationOf(node: AstNode): Situation | null {
       // `list[count]`
       return Reflect.get(parent, "computed") === true ? "index" : null;
     }
+    case "AssignmentExpression":
+      // `t += count` adds or concatenates the function itself; `t = count` and `t ||= count` store the accessor.
+      return at(parent, "right") === inner &&
+        COMPOUND_VALUE_OPERATORS.has(str(parent, "operator") ?? "")
+        ? "arithmetic"
+        : null;
     case "SpreadElement":
       return "spread";
     case "JSXSpreadAttribute":

@@ -1,7 +1,7 @@
 import type { Rule, Scope } from "eslint";
 import { type Foreign, RENAMED, SAME_NAME, UNSUPPORTED } from "../data/foreign";
 import { defineRule, type ShadowRule } from "../rule";
-import { type AstNode, asAst, at, identName, list, str, unwrap } from "../utils/ast";
+import { type AstNode, asAst, at, identName, list, slots, str, unwrap } from "../utils/ast";
 import {
   applyEdits,
   type Edit,
@@ -12,7 +12,7 @@ import {
 } from "../utils/fixes";
 import { isIntrinsicTag, jsxAttributeExpression, jsxAttributeName, jsxTagName } from "../utils/jsx";
 import { memberName } from "../utils/reactive";
-import { importOf, resolveVariable, shadowApiName } from "../utils/scope";
+import { importOf, resolveVariable, scopeOf, shadowApiName } from "../utils/scope";
 
 const SOURCES: Record<Foreign, RegExp> = {
   react: /^react(?:-dom)?(?:\/.*)?$/,
@@ -135,7 +135,10 @@ function targetOf(framework: Foreign, name: string): string | undefined {
  * `className` / `htmlFor` on DOM elements, move same-name imports to `@shadow-js/*` and remove imports that are no longer
  * used. They apply over several ESLint passes. A fix is withheld when the needed name is already
  * bound to something else, when a `useState` / `useMemo` value is reassigned or not stored in a
- * plain variable, and for Solid `createEffect(on(...))`. `key` on a DOM element gets a suggestion
+ * plain variable, when a `useState` initializer is a function that is not a plain `() => expression`
+ * (a plain one is unwrapped, because `useSignal` would store the function), when an effect with a
+ * dependency array both reads and writes the same signal (removing the array would make it loop; the
+ * removal is only suggested), and for Solid `createEffect(on(...))`. `key` on a DOM element gets a suggestion
  * that removes the attribute. APIs without an equivalent are reported with the recipe and not fixed.
  *
  * Disabling: `// eslint-disable-next-line shadow/no-react-patterns` above the line, or a block
@@ -191,13 +194,15 @@ export const noReactPatterns: ShadowRule = defineRule({
     ],
   },
   notes: [
+    "`useState(() => expression)` becomes `useSignal(expression)`: ShadowJS has no lazy initializer and `useSignal` would store the function. A function initializer that is not a plain arrow with an expression body is reported without a fix.",
+    "A dependency array is removed by the autofix only when the effect body does not write a signal it reads; otherwise the removal is a suggestion with the reason, because the effect would track the signal and re-run after each of its own writes.",
     "Autofixes: `useState` to `useSignal` (reads become calls), dependency arrays removed (`[]` becomes `onMount`), `useLayoutEffect` to `useRenderEffect`, `useCallback`/`memo` unwrapped, `className`/`htmlFor` renamed, imports moved to `@shadow-js/*` and the old import removed once unused. Fixes apply over several ESLint passes.",
     "`key` on an element is a suggestion: removing it changes nothing at run time, but the list may need `<For key>`.",
     "`onChange` on a text input or a textarea is per edit in ShadowJS, as in React. Solid's `onChange` is committed on change: with `frameworks: ['solid']`, or a file that imports `solid-js` and no React module when both are listed, it is reported once and the fix renames it to `onchange`. Use `onInput` to keep per-edit updates.",
     "Only names imported from `react`, `react-dom` (or `solid-js`) are checked: a local function named `useState` is left alone.",
     "Option `frameworks` (default `['react']`) selects which libraries are checked; Solid names are renamed one to one (`createSignal` to `useSignal`).",
   ],
-  fix: "Solid `onChange` on a text input is renamed to `onchange` (the native change event, Solid's meaning), unless the element has a second `onChange` or already has `onchange`. Other fixes rename hooks to their ShadowJS names (`useState` to `useSignal` with every read of the value turned into a call, `useLayoutEffect` to `useRenderEffect`, Solid `createX` hooks to their `use*` equivalents), drop dependency arrays (`useEffect(fn, [])` becomes `onMount(fn)`), unwrap `useCallback(fn)` and `memo(fn)`, turn `useMemo` reads into calls, rename `className`/`htmlFor` on DOM elements, move same-name imports to `@shadow-js/*` and remove imports that are no longer used. A fix is withheld when the needed name is already bound to something else, when a `useState`/`useMemo` value is reassigned or not stored in a plain variable, and for `createEffect(on(...))`. The `key` suggestion removes the attribute from a DOM element. APIs without an equivalent are reported with the recipe and not fixed.",
+  fix: "Solid `onChange` on a text input is renamed to `onchange` (the native change event, Solid's meaning), unless the element has a second `onChange` or already has `onchange`. Other fixes rename hooks to their ShadowJS names (`useState` to `useSignal` with every read of the value turned into a call, `useLayoutEffect` to `useRenderEffect`, Solid `createX` hooks to their `use*` equivalents), drop dependency arrays (`useEffect(fn, [])` becomes `onMount(fn)`), unwrap `useCallback(fn)` and `memo(fn)`, turn `useMemo` reads into calls, rename `className`/`htmlFor` on DOM elements, move same-name imports to `@shadow-js/*` and remove imports that are no longer used. A lazy `useState(() => expression)` initializer is unwrapped to `useSignal(expression)`. A fix is withheld when the needed name is already bound to something else, when a `useState`/`useMemo` value is reassigned or not stored in a plain variable, when a function initializer is not a plain `() => expression`, and for `createEffect(on(...))`. A dependency array of an effect that reads and writes the same signal is removed by a suggestion only, since the effect would then loop. The `key` suggestion removes the attribute from a DOM element. APIs without an equivalent are reported with the recipe and not fixed.",
   disableWhen:
     "Disable it for code that must keep running under React or Solid as well (shared components, a compatibility layer), where the foreign API is intended.",
   fixable: "code",
@@ -223,6 +228,10 @@ export const noReactPatterns: ShadowRule = defineRule({
       "`useMemo` returns an accessor in ShadowJS: read the value as `value()`. The dependency array is not needed.",
     dependencyArray:
       "ShadowJS tracks dependencies automatically. Remove the dependency array of `{{name}}`.",
+    dependencyArrayLoops:
+      "ShadowJS tracks dependencies automatically, so the dependency array of `{{name}}` can go. But this effect writes `{{written}}` and also reads it: tracked on its own it would run again after every write and never settle. Read it with `untrack(...)`, or give the effect an explicit source with `useEffect(source, fn)`, before removing the array.",
+    removeDependencyArray:
+      "Remove the dependency array anyway (check the effect for a read-and-write loop first).",
     emptyDeps: "`{{name}}(fn, [])` runs once: that is `onMount(fn)` in ShadowJS.",
     useCallback:
       "Components run once, so functions are already stable: `useCallback` is not needed.",
@@ -310,6 +319,41 @@ export const noReactPatterns: ShadowRule = defineRule({
       return { range: [first.range[1], last.range[1]], text: "" };
     };
 
+    /**
+     * The name of a signal the effect body both reads and writes, or `undefined`. Once the dependency array is gone the
+     * effect tracks what it reads, so a read of a signal it also sets would re-run it after each write, forever. State
+     * is found through its `[value, setter]` pair from `useState`, `useSignal` or `createSignal`; a setter's updater
+     * callback (`setN((prev) => ...)`) reads nothing from outside, so it does not count as a read.
+     */
+    const readAndWritten = (effect: AstNode | undefined): string | undefined => {
+      if (effect === undefined) return undefined;
+      const fn = unwrap(effect);
+      if (fn.type !== "ArrowFunctionExpression" && fn.type !== "FunctionExpression")
+        return undefined;
+      const reads = new Map<AstNode, string>();
+      const writes = new Set<AstNode>();
+      for (const reference of scopeOf(context, fn).through) {
+        const variable = reference.resolved;
+        const definition = variable?.defs[0];
+        if (variable === null || variable === undefined || definition === undefined) continue;
+        const declarator = asAst(definition.node);
+        if (declarator.type !== "VariableDeclarator") continue;
+        const id = at(declarator, "id");
+        const init = at(declarator, "init");
+        const initCallee = init === null ? null : at(init, "callee");
+        if (id === null || id.type !== "ArrayPattern" || initCallee === null) continue;
+        const hook = foreignRef(initCallee)?.name ?? shadowApiName(context, initCallee);
+        if (hook !== "useState" && hook !== "useSignal" && hook !== "createSignal") continue;
+        const slot = slots(id, "elements").findIndex(
+          (element) => element !== null && (element as unknown) === (definition.name as unknown),
+        );
+        if (slot === 0 && reference.isRead()) reads.set(declarator, variable.name);
+        else if (slot === 1) writes.add(declarator);
+      }
+      for (const [declarator, name] of reads) if (writes.has(declarator)) return name;
+      return undefined;
+    };
+
     const checkCall = (call: AstNode): void => {
       const callee = at(call, "callee");
       if (callee === null) return;
@@ -341,11 +385,42 @@ export const noReactPatterns: ShadowRule = defineRule({
           const first =
             id !== null && id.type === "ArrayPattern" ? list(id, "elements")[0] : undefined;
           let edits: Edit[] | null = null;
-          if (first !== undefined && first.type === "Identifier") {
+          // `useSignal` stores a function as the value, while `useState` calls a lazy initializer once. ShadowJS has no
+          // lazy form, and a component body runs once, so `() => expression` is unwrapped to `expression`; any other
+          // function argument cannot be, and the call is reported without a fix.
+          const initial = args[0];
+          const initialFn = initial === undefined ? undefined : unwrap(initial);
+          let unwrapped: Edit | null = null;
+          let lazyBlocked = false;
+          if (
+            initialFn !== undefined &&
+            (initialFn.type === "ArrowFunctionExpression" ||
+              initialFn.type === "FunctionExpression")
+          ) {
+            const body = at(initialFn, "body");
+            if (
+              initialFn.type === "ArrowFunctionExpression" &&
+              body !== null &&
+              body.type !== "BlockStatement" &&
+              list(initialFn, "params").length === 0 &&
+              Reflect.get(initialFn, "async") !== true
+            ) {
+              const code = text.slice(...body.range);
+              unwrapped = {
+                range: initialFn.range,
+                text: body.type === "SequenceExpression" ? `(${code})` : code,
+              };
+            } else {
+              lazyBlocked = true;
+            }
+          }
+          if (first !== undefined && first.type === "Identifier" && !lazyBlocked) {
             const variable = resolveVariable(context, first);
             const reads = variable === null ? null : readsToCalls(variable);
             const renamed = renameEdits(callee, "useSignal", "@shadow-js/core");
-            if (reads !== null && renamed !== null) edits = [...renamed, ...reads];
+            if (reads !== null && renamed !== null) {
+              edits = [...renamed, ...reads, ...(unwrapped === null ? [] : [unwrapped])];
+            }
           }
           context.report({ node: call, messageId: "state", ...fixWith(edits) });
           return;
@@ -372,12 +447,33 @@ export const noReactPatterns: ShadowRule = defineRule({
                 name === "useLayoutEffect"
                   ? renameEdits(callee, "useRenderEffect", "@shadow-js/core")
                   : [];
-              context.report({
-                node: deps,
-                messageId: "dependencyArray",
-                data: { name },
-                ...fixWith(renamed === null || drop === null ? null : [...renamed, drop]),
-              });
+              const edits = renamed === null || drop === null ? null : [...renamed, drop];
+              const looping = readAndWritten(args[0]);
+              if (looping !== undefined) {
+                // Removing the array would make the effect track a signal it writes: offered, never applied by --fix.
+                context.report({
+                  node: deps,
+                  messageId: "dependencyArrayLoops",
+                  data: { name, written: looping },
+                  ...(edits === null
+                    ? {}
+                    : {
+                        suggest: [
+                          {
+                            messageId: "removeDependencyArray",
+                            fix: (fixer: Rule.RuleFixer) => applyEdits(fixer, edits),
+                          },
+                        ],
+                      }),
+                });
+              } else {
+                context.report({
+                  node: deps,
+                  messageId: "dependencyArray",
+                  data: { name },
+                  ...fixWith(edits),
+                });
+              }
             }
             return;
           }

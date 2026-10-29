@@ -53,6 +53,7 @@ Disable one line with `// eslint-disable-next-line shadow/no-physical-direction-
 ## Notes
 
 - Static literals only. Allows rtl/ltr/data-[side=...] variants. Limit: 10,000 nodes.
+- Only real Tailwind utilities are matched (`ml-2`, `left-1/2`, `border-l-2`, `rounded-tl-md`, `text-left`, `float-right`, `clear-left`); an author's own class such as `left-panel` is left alone.
 
 ## Messages
 

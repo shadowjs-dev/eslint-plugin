@@ -3,7 +3,39 @@ import { type AstNode, at, identName, list, str, unwrap } from "../utils/ast";
 import { jsxAttributeName } from "../utils/jsx";
 
 const MAX_CLASS_NODES = 10_000;
-const SIDES: Readonly<Record<string, string>> = { left: "start", right: "end", l: "s", r: "e" };
+/** Physical side to its logical name: edges, and the corners of `rounded-*` (top-left is start-start, and so on). */
+const SIDES: Readonly<Record<string, string>> = {
+  left: "start",
+  right: "end",
+  l: "s",
+  r: "e",
+  tl: "ss",
+  tr: "se",
+  bl: "es",
+  br: "ee",
+};
+
+/**
+ * A Tailwind spacing or inset value: a number, a fraction, `px`, `auto`, `full`, or an arbitrary `[...]` / `(--var)`.
+ * Anything else (`left-panel`) is an author's own class name, not a utility.
+ */
+const VALUE = String.raw`(?:\d+(?:\.\d+)?|\d+/\d+|px|auto|full|\[[^\]\s]+\]|\([^)\s]+\))`;
+/** `rounded-*` sizes Tailwind knows. */
+const RADIUS = String.raw`(?:none|xs|sm|md|lg|xl|[234]xl|full|\d+|\[[^\]\s]+\]|\([^)\s]+\))`;
+
+/** The real utilities with a physical side, each capturing `(prefix)(side)(rest)`. A trailing `!` is Tailwind 4's important. */
+const PHYSICAL_UTILITIES: readonly RegExp[] = [
+  // `ml-2`, `pr-px`, `scroll-ml-4`
+  new RegExp(`^((?:scroll-)?[mp])([lr])(-${VALUE}!?)$`),
+  // `left-0`, `right-1/2`
+  new RegExp(`^()(left|right)(-${VALUE}!?)$`),
+  // `border-l`, `border-r-2`, `border-l-red-500`
+  /^(border-)([lr])((?:-\S+)?)$/,
+  // `rounded-l`, `rounded-tr-lg`
+  new RegExp(`^(rounded-)(l|r|tl|tr|bl|br)((?:-${RADIUS})?!?)$`),
+  // `text-left`, `float-right`, `clear-left`
+  /^((?:text|float|clear)-)(left|right)(!?)$/,
+];
 
 /** Variants may contain colons inside arbitrary selectors; only top-level colons separate them. */
 function logicalToken(token: string): string {
@@ -28,12 +60,15 @@ function logicalToken(token: string): string {
   const signed = utility.slice(prefix.length);
   const sign = signed.startsWith("-") ? "-" : "";
   const bare = signed.slice(sign.length);
-  const logical = bare.replace(
-    // `ml`, `pr`, `left` and `right` are utilities only with a value (`ml-2`, `left-0`); on their own
-    // they are an author's own class names (`class="left"`) and must not be rewritten.
-    /^(?:(?:[mp][lr]|left|right)(?=-)|(?:text-(?:left|right)|(?:border|rounded)-[lr])(?=-|$))/,
-    (physical) => physical.replace(/left$|right$|[lr]$/, (side) => SIDES[side] ?? side),
-  );
+  // Only a real utility is rewritten: `left-panel` or `text-left-aligned` are an author's own class names.
+  let logical = bare;
+  for (const pattern of PHYSICAL_UTILITIES) {
+    const match = pattern.exec(bare);
+    if (match === null) continue;
+    const [, head = "", side = "", rest = ""] = match;
+    logical = `${head}${SIDES[side] ?? side}${rest}`;
+    break;
+  }
   return `${token.slice(0, start)}${prefix}${sign}${logical}`;
 }
 
@@ -62,7 +97,10 @@ export const noPhysicalDirectionClasses: ShadowRule = defineRule({
     incorrect: ['<div class="ml-2 pl-4 text-left" />'],
     correct: ['<div class="ms-2 ps-4 text-start" />', '<div class="rtl:ml-2 ltr:mr-2" />'],
   },
-  notes: ["Static literals only. Allows rtl/ltr/data-[side=...] variants. Limit: 10,000 nodes."],
+  notes: [
+    "Static literals only. Allows rtl/ltr/data-[side=...] variants. Limit: 10,000 nodes.",
+    "Only real Tailwind utilities are matched (`ml-2`, `left-1/2`, `border-l-2`, `rounded-tl-md`, `text-left`, `float-right`, `clear-left`); an author's own class such as `left-panel` is left alone.",
+  ],
   fix: "Offers suggestions; { fix: true } enables autofix. Encoded literals have no fix.",
   disableWhen: "Disable for intentional physical edges that do not mirror in RTL.",
   fixable: "code",

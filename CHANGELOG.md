@@ -1,5 +1,15 @@
 # Changelog
 
+## 1.0.3
+
+### Fixed
+
+- `no-react-patterns` only autofixes the removal of an effect's dependency array when the body does not write a signal it reads; otherwise it offers a suggestion that explains the read-and-write loop.
+- `no-react-patterns` unwraps a lazy `useState(() => expression)` to `useSignal(expression)` (and reports other function initializers without a fix), since `useSignal` would store the function.
+- `signal-must-be-called` reports an accessor on the right of a compound assignment (`t += count`, `t *= count`).
+- `no-physical-direction-classes` rewrites only real Tailwind utilities (`left-panel` and `text-left-aligned` are left alone) and adds `rounded-tl/tr/bl/br-*`, `float-left/right` and `clear-left/right`.
+- `hooks-in-owner` reports owner-bound hooks called after an `await` in an async function (`onMount(async () => { await x(); onCleanup(fn) })`).
+
 ## 1.0.2
 
 ### Fixed
