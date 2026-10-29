@@ -1,6 +1,6 @@
 {
   "name": "@shadow-js/eslint-plugin",
-  "version": "1.0.1",
+  "version": "1.0.2",
   "description": "ESLint rules for reactivity, ownership and security, and for migrating code from React or Solid",
   "license": "MIT",
   "type": "module",

@@ -29,7 +29,9 @@ function logicalToken(token: string): string {
   const sign = signed.startsWith("-") ? "-" : "";
   const bare = signed.slice(sign.length);
   const logical = bare.replace(
-    /^(?:[mp][lr]|left|right|text-(?:left|right)|(?:border|rounded)-[lr])(?=-|$)/,
+    // `ml`, `pr`, `left` and `right` are utilities only with a value (`ml-2`, `left-0`); on their own
+    // they are an author's own class names (`class="left"`) and must not be rewritten.
+    /^(?:(?:[mp][lr]|left|right)(?=-)|(?:text-(?:left|right)|(?:border|rounded)-[lr])(?=-|$))/,
     (physical) => physical.replace(/left$|right$|[lr]$/, (side) => SIDES[side] ?? side),
   );
   return `${token.slice(0, start)}${prefix}${sign}${logical}`;

@@ -75,6 +75,8 @@ Disable one line with `// eslint-disable-next-line shadow/jsx-no-unsafe-inner-ht
 
 - Option `allowedSanitizers` (default `sanitize`, `sanitizeHtml`, `DOMPurify.sanitize`, `trusted`, `trustedHtml`) lists calls whose result is trusted. Entries are exact dotted names.
 - `dangerouslySetInnerHTML` (React) is always reported; the suggestion converts it to `innerHTML`, which is then checked like any other value.
+- `srcdoc` of an `<iframe>` (and `prop:srcdoc`, and `.srcdoc` assignments) is checked like `innerHTML`: the browser parses it as a whole HTML document.
+- A sanitizer call may be indirect, `(0, DOMPurify.sanitize)(html)`. The name `DOMPurify` is trusted only when it is the global (also one the configuration declares, or an ambient `declare const DOMPurify`) or comes from an import, `import()` or `require`; a local object or parameter named `DOMPurify` is not the library.
 - Also checked: `.innerHTML` / `.outerHTML` assignments, `insertAdjacentHTML`, `createContextualFragment`, `document.write`, and the `innerHTML` / `outerHTML` / `dangerouslySetInnerHTML` keys of an object literal spread onto an element.
 
 ## Messages
