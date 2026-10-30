@@ -61,9 +61,9 @@ later. If you need its rules, keep TypeScript 6.0 for the linter only.
 
 ### Type information
 
-The parser builds no TypeScript program, so there is no type checker. Two rules can use types when a
-parser provides them; the docs mark them "uses types when available". Without types they judge by syntax and
-report less, never differently:
+The parser builds no TypeScript program, so there is no type checker. One rule can use types when a
+parser provides them; its docs page marks it "uses types when available". Without types it judges by syntax and
+reports less, never differently:
 
 - `signal-must-be-called` finds accessors from `useStore(0)` cells (and `useSignal`), `useMemo`, `useResource`, `useSelector` and
   `children` declarations (and aliases) in the file; with types it also suggests calling any value typed as
@@ -90,7 +90,7 @@ export default [
 ];
 ```
 
-Both parsers are tested against every rule (the rule tests run twice), and the two typed rules are tested
+Both parsers are tested against every rule (the rule tests run twice), and the typed rule is tested
 with real type information.
 
 ### Your own parser setup
@@ -193,7 +193,8 @@ npx eslint --fix --config eslint.migrate.config.js src
 
 with `export default [shadow.configs.migration]`. ESLint applies the fixes over several passes:
 `useState` becomes `useSignal` with reads turned into calls, dependency arrays disappear (`[]` becomes
-`onMount`), `useCallback`/`memo` are unwrapped, `className` becomes `class`, imports move to
+`onMount`; if the effect also writes a signal it reads, only a suggestion offers the removal, because the effect would loop), a lazy
+`useState(() => value)` initializer is unwrapped, `useCallback`/`memo` are unwrapped, `className` becomes `class`, imports move to
 `@shadow-js/core` / `@shadow-js/web` and the old import is removed once unused. What cannot be translated
 mechanically (`useRef`, `forwardRef`, `useCallback` without a dependency array, ...) stays reported with the alternative. Renamed and same-name hooks (`useSyncExternalStore`, `useEffectEvent`, `useActionState`, `useLayoutEffect`, `useReducer`, `createReaction`) are rewritten.
 
