@@ -1,6 +1,6 @@
 {
   "name": "@shadow-js/eslint-plugin",
-  "version": "1.0.4",
+  "version": "1.0.5",
   "description": "ESLint rules for reactivity, ownership and security, and for migrating code from React or Solid",
   "license": "MIT",
   "type": "module",
@@ -56,8 +56,8 @@
     "@biomejs/biome": "2.5.15",
     "@types/node": "^24.0.0",
     "@typescript-eslint/parser": "8.71.1",
-    "eslint": "10.12.0",
-    "happy-dom": "^21.0.3",
+    "eslint": "10.14.0",
+    "happy-dom": "21.0.4",
     "tsdown": "0.23.0",
     "typescript": "6.0.3",
     "vitest": "5.0.3"
