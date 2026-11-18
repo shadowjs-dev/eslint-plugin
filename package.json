@@ -1,6 +1,6 @@
 {
   "name": "@shadow-js/eslint-plugin",
-  "version": "1.1.0",
+  "version": "1.1.1",
   "description": "ESLint rules for reactivity, ownership and security, and for migrating code from React or Solid",
   "license": "MIT",
   "type": "module",
@@ -48,19 +48,19 @@
     "check": "npm run lint && npm run typecheck && npm run build && npm test && npm run test:perf && npm run test:gc"
   },
   "dependencies": {
-    "@typescript-eslint/scope-manager": "8.71.1",
-    "@typescript-eslint/visitor-keys": "8.71.1",
-    "oxc-parser": "0.153.0"
+    "@typescript-eslint/scope-manager": "8.72.2",
+    "@typescript-eslint/visitor-keys": "8.72.2",
+    "oxc-parser": "0.158.0"
   },
   "devDependencies": {
-    "@biomejs/biome": "2.5.15",
+    "@biomejs/biome": "2.6.6",
     "@types/node": "^24.0.0",
-    "@typescript-eslint/parser": "8.71.1",
+    "@typescript-eslint/parser": "8.72.2",
     "eslint": "10.14.0",
     "happy-dom": "21.0.4",
-    "tsdown": "0.23.0",
+    "tsdown": "0.23.7",
     "typescript": "6.0.3",
-    "vitest": "5.0.3"
+    "vitest": "5.1.0"
   },
   "keywords": [
     "shadowjs",

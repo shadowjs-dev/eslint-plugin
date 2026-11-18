@@ -1,5 +1,11 @@
 # Changelog
 
+## 1.1.1
+
+### Changed
+
+- `oxc-parser` 0.158 (was 0.153); `@typescript-eslint/scope-manager` and `@typescript-eslint/visitor-keys` 8.72.2 (were 8.71.1).
+
 ## 1.1.0
 
 ### Changed
