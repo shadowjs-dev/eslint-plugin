@@ -53,10 +53,10 @@
     "oxc-parser": "0.158.0"
   },
   "devDependencies": {
-    "@biomejs/biome": "2.6.6",
+    "@biomejs/biome": "2.6.8",
     "@types/node": "^24.0.0",
     "@typescript-eslint/parser": "8.72.2",
-    "eslint": "10.14.0",
+    "eslint": "10.15.0",
     "happy-dom": "21.0.4",
     "tsdown": "0.23.7",
     "typescript": "6.0.3",
