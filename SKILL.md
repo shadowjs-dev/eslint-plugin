@@ -5,7 +5,7 @@ description: "Work with @shadow-js/eslint-plugin. ESLint rules for reactivity, o
 
 # @shadow-js/eslint-plugin
 
-Version 1.1.2. ESLint rules for reactivity, ownership and security, and for migrating code from React or Solid.
+Version 1.2.0. ESLint rules for reactivity, ownership and security, and for migrating code from React or Solid.
 
 ## Where to read more
 
